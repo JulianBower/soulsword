@@ -56,7 +56,7 @@ public final class ModRenderTypes extends RenderType {
     public static final RenderType RIFT_MASK = create("soul_sword_rift_mask",
             DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.TRIANGLES, 1536, false, false,
             CompositeState.builder()
-                    .setShaderState(POSITION_COLOR_SHADER)
+                    .setShaderState(POSITION_COLOR_TEX_SHADER)
                     .setTransparencyState(NO_TRANSPARENCY)
                     .setDepthTestState(LEQUAL_DEPTH_TEST)
                     .setCullState(NO_CULL)
@@ -93,7 +93,7 @@ public final class ModRenderTypes extends RenderType {
     public static final Function<ResourceLocation, RenderType> RIFT_SKY_BODY = Util.memoize(tex -> create("soul_sword_rift_body",
             DefaultVertexFormat.POSITION_TEX, VertexFormat.Mode.QUADS, 256, false, false,
             CompositeState.builder()
-                    .setShaderState(POSITION_TEXTURE_SHADER)
+                    .setShaderState(POSITION_TEX_SHADER)
                     .setTextureState(new RenderStateShard.TextureStateShard(tex, false, false))
                     .setTransparencyState(ADDITIVE_TRANSPARENCY)
                     .setDepthTestState(NO_DEPTH_TEST)

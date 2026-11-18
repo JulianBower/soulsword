@@ -212,13 +212,13 @@ public class SoulSwordItem extends SwordItem {
     }
 
     @Override
-    public int getUseDuration(ItemStack stack) {
+    public int getUseDuration(ItemStack stack, LivingEntity entity) {
         return CAST_LOCK_TICKS;
     }
 
     @Override
     public boolean isFoil(ItemStack stack) {
-        return getSouls(stack) > 0;
+        return 72000;
     }
 
     @Override
