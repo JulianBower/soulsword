@@ -217,11 +217,6 @@ public class SoulSwordItem extends SwordItem {
     }
 
     @Override
-    public int getUseDuration(ItemStack stack, LivingEntity entity) {
-        return 72000;
-    }
-
-    @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
         long souls = getSouls(stack);
         int mode = getMode(stack);
