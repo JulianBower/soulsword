@@ -217,7 +217,7 @@ public class SoulSwordItem extends SwordItem {
     }
 
     @Override
-    public boolean isFoil(ItemStack stack) {
+    public int getUseDuration(ItemStack stack, LivingEntity entity) {
         return 72000;
     }
 
