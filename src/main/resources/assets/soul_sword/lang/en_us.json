@@ -1,0 +1,23 @@
+{
+  "item.soul_sword.soul_sword": "Soul Sword",
+  "item.soul_sword.soul_sword.subtitle": "Blade of Infinite Strength",
+  "effect.soul_sword.soul_sever": "Soul Sever",
+  "key.soul_sword.switch_mode": "Switch Soul Sword Mode",
+  "key.categories.soul_sword": "The Soul Sword",
+  "entity.soul_sword.reality_rift": "Reality Rift",
+  "entity.soul_sword.annihilation_beam": "Annihilation Beam",
+  "tooltip.soul_sword.souls": "Souls: %s",
+  "tooltip.soul_sword.bonus": "Bonus Damage: +%s",
+  "tooltip.soul_sword.mode": "Mode: %s",
+  "mode.soul_sword.0": "Soul Rupture",
+  "mode.soul_sword.1": "Reality Cut",
+  "mode.soul_sword.2": "ANNIHILATION",
+  "message.soul_sword.mode": "Mode: %s",
+  "message.soul_sword.not_enough": "Not enough souls (need %s)",
+  "message.soul_sword.rift_dim": "Rift target: %s",
+  "message.soul_sword.empowered": "Soul Rupture empowered",
+  "message.soul_sword.charged": "Reality Cut charged",
+  "dim.soul_sword.overworld": "Overworld",
+  "dim.soul_sword.nether": "The Nether",
+  "dim.soul_sword.end": "The End"
+}
