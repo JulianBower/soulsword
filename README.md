@@ -21,6 +21,12 @@ Netherite ingot / 2 diamond blocks / nether star (shaped, see `data/soul_sword/r
 
 Souls: +1 per mob killed in melee, +50 per boss, **capped at 100,000**. Bonus damage = `souls / 100,000 * 35` (+35.0 at the cap).
 
+## Cheat command (ops, permission level 2)
+    /soul_sword souls set <amount> [players]
+    /soul_sword souls add <amount> [players]   (negative amounts allowed)
+Applies to the Soul Sword in the main hand (or off hand); results are clamped to 0..100,000.
+You can also get a sword with `/give @s soul_sword:soul_sword`.
+
 ## Design notes
 * Holding right-click is the vanilla item-use state, so the raised-blade pose is visible to everyone (third person: arm raised,
   first person: `applyForgeHandTransform`). Vanilla swallows left-clicks during item use, so the client forwards them
