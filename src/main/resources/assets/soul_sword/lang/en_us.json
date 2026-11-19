@@ -6,7 +6,7 @@
   "key.categories.soul_sword": "The Soul Sword",
   "entity.soul_sword.reality_rift": "Reality Rift",
   "entity.soul_sword.annihilation_beam": "Annihilation Beam",
-  "tooltip.soul_sword.souls": "Souls: %s",
+  "tooltip.soul_sword.souls": "Souls: %s / %s",
   "tooltip.soul_sword.bonus": "Bonus Damage: +%s",
   "tooltip.soul_sword.mode": "Mode: %s",
   "mode.soul_sword.0": "Soul Rupture",

@@ -3,9 +3,12 @@ package com.soulsword.client;
 import com.soulsword.SoulSwordMod;
 import com.soulsword.item.SoulSwordItem;
 import com.soulsword.network.SwitchSwordModePayload;
+import com.soulsword.network.SwordStrikePayload;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.EntityHitResult;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -20,6 +23,27 @@ public final class ClientGameEvents {
     private static boolean holdsSword(LocalPlayer player) {
         return player.getMainHandItem().getItem() instanceof SoulSwordItem
                 || player.getOffhandItem().getItem() instanceof SoulSwordItem;
+    }
+
+    /**
+     * Vanilla swallows left-clicks while an item is in use. Runs before vanilla's key handling each tick and forwards
+     * the click to the server as a strike so Soul Rupture / Reality Cut can hit while right-click is held.
+     */
+    @SubscribeEvent
+    public static void onClientTickPre(ClientTickEvent.Pre event) {
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer player = mc.player;
+        if (player == null || mc.screen != null || !SoulSwordItem.isActive(player)
+                || SoulSwordItem.getMode(player.getUseItem()) == SoulSwordItem.MODE_ANNIHILATION) {
+            return;
+        }
+        while (mc.options.keyAttack.consumeClick()) {
+            if (mc.hitResult instanceof EntityHitResult hit && hit.getEntity().isAttackable()) {
+                PacketDistributor.sendToServer(new SwordStrikePayload(hit.getEntity().getId()));
+            }
+            player.swing(InteractionHand.MAIN_HAND);
+            player.resetAttackStrengthTicker();
+        }
     }
 
     /** X cycles Soul Rupture -> Reality Cut -> ANNIHILATION. */

@@ -4,15 +4,18 @@ import com.soulsword.ability.SoulSwordAbilities;
 import com.soulsword.registry.ModComponents;
 import com.soulsword.registry.ModEffects;
 import net.minecraft.ChatFormatting;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.particles.ColorParticleOption;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -27,6 +30,9 @@ import java.util.List;
 import java.util.Locale;
 
 public class SoulSwordItem extends SwordItem {
+    /** Hard cap on stored souls. */
+    public static final long MAX_SOULS = 100_000L;
+
     public static final int MODE_RUPTURE = 0;
     public static final int MODE_REALITY_CUT = 1;
     public static final int MODE_ANNIHILATION = 2;
@@ -34,12 +40,11 @@ public class SoulSwordItem extends SwordItem {
     public static final int HIT_COST = 250;
     public static final int ANNIHILATION_MIN = 100;
     public static final int CHARGE_TICKS = 20;
+    /** Ticks until the charge animation / audio / spiral reach full intensity. */
+    public static final int FULL_CHARGE_TICKS = 60;
     public static final int CAST_LOCK_TICKS = 40;
     public static final int SEVER_TICKS = 200;
-
-    private static final String KEY_ACTIVE_UNTIL = "soul_sword_active_until";
-    private static final String KEY_CHARGE_START = "soul_sword_charge_start";
-    private static final String KEY_NOTIFIED = "soul_sword_charge_notified";
+    private static final int HOLD_TICKS = 72000;
 
     public SoulSwordItem(Properties properties) {
         super(Tiers.NETHERITE, properties);
@@ -48,17 +53,16 @@ public class SoulSwordItem extends SwordItem {
     // ---------------------------------------------------------------- data helpers
 
     public static long getSouls(ItemStack stack) {
-        return Math.max(0L, stack.getOrDefault(ModComponents.SOULS.get(), 0L));
+        return SoulMath.clamp(stack.getOrDefault(ModComponents.SOULS.get(), 0L));
     }
 
     public static void setSouls(ItemStack stack, long souls) {
-        stack.set(ModComponents.SOULS.get(), Math.max(0L, souls));
+        stack.set(ModComponents.SOULS.get(), SoulMath.clamp(souls));
     }
 
+    /** Adds souls, saturating at {@link #MAX_SOULS}. */
     public static void addSouls(ItemStack stack, long amount) {
-        long current = getSouls(stack);
-        long next = current + amount;
-        setSouls(stack, next < current ? Long.MAX_VALUE : next); // overflow guard only
+        setSouls(stack, getSouls(stack) + amount);
     }
 
     public static int getMode(ItemStack stack) {
@@ -69,16 +73,14 @@ public class SoulSwordItem extends SwordItem {
         return Math.floorMod(stack.getOrDefault(ModComponents.RIFT_DIM.get(), 0), 3);
     }
 
-    /** Right-click held recently (Soul Rupture empowered / Reality Cut charging). */
+    /** True while the player holds right-click with a Soul Sword (vanilla use state, synced to every client). */
     public static boolean isActive(Player player) {
-        return player.getPersistentData().getLong(KEY_ACTIVE_UNTIL) >= player.level().getGameTime();
+        return player.isUsingItem() && player.getUseItem().getItem() instanceof SoulSwordItem;
     }
 
     /** Reality Cut: held long enough to be charged. */
     public static boolean isCharged(Player player) {
-        CompoundTag data = player.getPersistentData();
-        long now = player.level().getGameTime();
-        return data.getLong(KEY_ACTIVE_UNTIL) >= now && now - data.getLong(KEY_CHARGE_START) >= CHARGE_TICKS;
+        return isActive(player) && player.getTicksUsingItem() >= CHARGE_TICKS;
     }
 
     /** True while the blade should burn bright (used by both logic and renderer). */
@@ -89,10 +91,10 @@ public class SoulSwordItem extends SwordItem {
         return false;
     }
 
-    public static void clearActive(Player player) {
-        CompoundTag data = player.getPersistentData();
-        data.putLong(KEY_ACTIVE_UNTIL, -1L);
-        data.putBoolean(KEY_NOTIFIED, false);
+    /** 0..1 charge animation progress of a player currently holding right-click. */
+    public static float chargeProgress(Player player, float partialTick) {
+        if (!isActive(player)) return 0.0F;
+        return Mth.clamp((player.getTicksUsingItem() + partialTick) / FULL_CHARGE_TICKS, 0.0F, 1.0F);
     }
 
     public static void cycleMode(ServerPlayer player) {
@@ -104,7 +106,6 @@ public class SoulSwordItem extends SwordItem {
         int next = (getMode(stack) + 1) % 3;
         stack.set(ModComponents.MODE.get(), next);
         player.stopUsingItem();
-        clearActive(player);
         player.displayClientMessage(Component.translatable("message.soul_sword.mode",
                 Component.translatable("mode.soul_sword." + next)).withStyle(modeColor(next), ChatFormatting.BOLD), true);
         player.level().playSound(null, player.blockPosition(), SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.PLAYERS, 1.0F, 0.6F + next * 0.4F);
@@ -153,28 +154,62 @@ public class SoulSwordItem extends SwordItem {
             return InteractionResultHolder.success(stack);
         }
 
-        // Modes 0 and 1: while right-click is held, use() fires every few ticks and keeps the state alive.
-        CompoundTag data = player.getPersistentData();
-        long now = level.getGameTime();
-        boolean fresh = data.getLong(KEY_ACTIVE_UNTIL) < now;
-        if (fresh) {
-            data.putLong(KEY_CHARGE_START, now);
-            data.putBoolean(KEY_NOTIFIED, false);
+        // Soul Rupture / Reality Cut: holding right-click is the charge. Left-clicks while holding are forwarded
+        // to the server by the client (vanilla swallows attacks during item use), see SwordStrikePayload.
+        player.startUsingItem(hand);
+        if (!level.isClientSide && mode == MODE_RUPTURE) {
+            level.playSound(null, player.blockPosition(), SoundEvents.SOUL_ESCAPE.value(), SoundSource.PLAYERS, 1.0F, 0.8F);
+            player.displayClientMessage(Component.translatable("message.soul_sword.empowered").withStyle(ChatFormatting.AQUA), true);
         }
-        data.putLong(KEY_ACTIVE_UNTIL, now + 7);
+        return InteractionResultHolder.consume(stack);
+    }
 
-        if (!level.isClientSide) {
-            if (mode == MODE_RUPTURE && fresh) {
-                level.playSound(null, player.blockPosition(), SoundEvents.SOUL_ESCAPE.value(), SoundSource.PLAYERS, 1.0F, 0.8F);
-                player.displayClientMessage(Component.translatable("message.soul_sword.empowered").withStyle(ChatFormatting.AQUA), true);
-            }
-            if (mode == MODE_REALITY_CUT && !data.getBoolean(KEY_NOTIFIED) && now - data.getLong(KEY_CHARGE_START) >= CHARGE_TICKS) {
-                data.putBoolean(KEY_NOTIFIED, true);
-                level.playSound(null, player.blockPosition(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 1.0F, 1.4F);
+    @Override
+    public void onUseTick(Level level, LivingEntity user, ItemStack stack, int remainingUseDuration) {
+        int mode = getMode(stack);
+        if (mode == MODE_ANNIHILATION) return;
+        int elapsed = getUseDuration(stack) - remainingUseDuration;
+        float charge = Mth.clamp(elapsed / (float) FULL_CHARGE_TICKS, 0.0F, 1.0F);
+
+        if (level.isClientSide) {
+            spiral(level, user, elapsed, charge);
+            return;
+        }
+        if (elapsed % 5 == 0) {
+            level.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BEACON_AMBIENT, SoundSource.PLAYERS,
+                    0.5F + 0.5F * charge, 0.5F + 1.5F * charge); // pitch rises while charging
+        }
+        if (elapsed == CHARGE_TICKS) {
+            level.playSound(null, user.getX(), user.getY(), user.getZ(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 1.0F, 1.3F);
+            if (mode == MODE_REALITY_CUT && user instanceof ServerPlayer player) {
                 player.displayClientMessage(Component.translatable("message.soul_sword.charged").withStyle(ChatFormatting.LIGHT_PURPLE), true);
             }
         }
-        return InteractionResultHolder.consume(stack);
+    }
+
+    /** Prismatic soul energy spiralling up the raised blade. */
+    private static void spiral(Level level, LivingEntity user, int elapsed, float charge) {
+        double yaw = Math.toRadians(user.getYRot());
+        double fx = -Math.sin(yaw);
+        double fz = Math.cos(yaw);
+        double rx = -Math.cos(yaw);
+        double rz = -Math.sin(yaw);
+        double side = user.getMainArm() == HumanoidArm.RIGHT ? 1.0D : -1.0D;
+        double bx = user.getX() + rx * 0.4D * side + fx * 0.35D;
+        double bz = user.getZ() + rz * 0.4D * side + fz * 0.35D;
+        double by = user.getY() + 1.0D;
+        int count = 1 + (int) (3.0F * charge);
+        for (int i = 0; i < count; i++) {
+            double h = ((elapsed * 0.21D + i * 0.37D) % 1.0D) * (1.2D + 1.6D * charge);
+            double angle = h * 7.0D + elapsed * 0.5D + i * 2.1D;
+            double radius = 0.30D - 0.05D * h;
+            int rgb = Mth.hsvToRgb((float) ((h * 0.35D + elapsed * 0.02D) % 1.0D), 0.7F, 1.0F);
+            level.addParticle(ColorParticleOption.create(ParticleTypes.ENTITY_EFFECT, 0xFF000000 | rgb),
+                    bx + Math.cos(angle) * radius, by + h, bz + Math.sin(angle) * radius, 0.0D, 0.04D, 0.0D);
+            if (charge > 0.5F && i == 0) {
+                level.addParticle(ParticleTypes.END_ROD, bx + Math.cos(angle) * radius, by + h, bz + Math.sin(angle) * radius, 0.0D, 0.03D, 0.0D);
+            }
+        }
     }
 
     @Override
@@ -208,20 +243,28 @@ public class SoulSwordItem extends SwordItem {
 
     @Override
     public UseAnim getUseAnimation(ItemStack stack) {
-        return UseAnim.SPEAR; // only ever used by Annihilation's casting pose
+        return UseAnim.SPEAR; // third person: arm raised high; first person is replaced by applyForgeHandTransform
     }
 
     @Override
-    public int getUseDuration(ItemStack stack, LivingEntity entity) {
-        return CAST_LOCK_TICKS;
+    public int getUseDuration(ItemStack stack) {
+        return getMode(stack) == MODE_ANNIHILATION ? CAST_LOCK_TICKS : HOLD_TICKS;
+    }
+
+    @Override
+    public boolean isFoil(ItemStack stack) {
+        return getSouls(stack) > 0;
     }
 
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
         long souls = getSouls(stack);
         int mode = getMode(stack);
+        NumberFormat nf = NumberFormat.getIntegerInstance(Locale.US);
         tooltip.add(Component.translatable("item.soul_sword.soul_sword.subtitle").withStyle(ChatFormatting.DARK_PURPLE, ChatFormatting.ITALIC));
-        tooltip.add(Component.translatable("tooltip.soul_sword.souls", Component.literal(NumberFormat.getIntegerInstance(Locale.US).format(souls)).withStyle(ChatFormatting.AQUA)).withStyle(ChatFormatting.GRAY));
+        tooltip.add(Component.translatable("tooltip.soul_sword.souls",
+                Component.literal(nf.format(souls)).withStyle(ChatFormatting.AQUA),
+                Component.literal(nf.format(MAX_SOULS)).withStyle(ChatFormatting.DARK_AQUA)).withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.soul_sword.bonus", Component.literal(String.format(Locale.US, "%.2f", SoulMath.bonusDamage(souls))).withStyle(ChatFormatting.RED)).withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.soul_sword.mode", Component.translatable("mode.soul_sword." + mode).withStyle(modeColor(mode))).withStyle(ChatFormatting.GRAY));
         if (mode == MODE_REALITY_CUT) {

@@ -12,7 +12,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
@@ -39,7 +38,7 @@ public final class SoulSwordAbilities {
 
     // ------------------------------------------------------------------ Mode 1: Soul Rupture
 
-    /** Calls a vertical soul beam down onto the struck mob, then detonates a clean shockwave. */
+    /** Calls a vertical soul beam down from the sky onto the struck mob; the explosion happens when its tip lands. */
     public static void soulRupture(ServerLevel level, ServerPlayer owner, LivingEntity target, long souls) {
         Vec3 p = target.position();
         double radius = SoulMath.ruptureRadius(souls);
@@ -47,40 +46,9 @@ public final class SoulSwordAbilities {
 
         AnnihilationBeamEntity beam = AnnihilationBeamEntity.create(level, p.x, p.y, p.z,
                 AnnihilationBeamEntity.VARIANT_RUPTURE, beamRadius, owner.getUUID());
+        beam.configureRupture(souls, target.getUUID());
         level.addFreshEntity(beam);
-
-        DamageSource source = level.damageSources().indirectMagic(beam, owner);
-        float baseDamage = SoulMath.ruptureDamage(souls);
-        target.hurt(source, baseDamage * 1.5F);
-
-        AABB box = new AABB(p, p).inflate(radius, radius * 0.75D, radius);
-        List<LivingEntity> nearby = level.getEntitiesOfClass(LivingEntity.class, box, e -> e != owner && e != target && e.isAlive());
-        for (LivingEntity e : nearby) {
-            double dx = e.getX() - p.x;
-            double dz = e.getZ() - p.z;
-            double d = Math.sqrt(dx * dx + dz * dz);
-            if (d > radius) continue;
-            double falloff = 1.0D - d / radius;
-            e.hurt(source, (float) (baseDamage * (0.4D + 0.6D * falloff)));
-            e.knockback(0.4D + 1.4D * falloff, p.x - e.getX(), p.z - e.getZ());
-        }
-
-        level.playSound(null, p.x, p.y, p.z, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 2.5F, 1.1F);
-        level.playSound(null, p.x, p.y, p.z, SoundEvents.GENERIC_EXPLODE.value(), SoundSource.PLAYERS, 2.0F + (float) radius * 0.2F, 0.9F);
-        level.playSound(null, p.x, p.y, p.z, SoundEvents.SOUL_ESCAPE.value(), SoundSource.PLAYERS, 1.5F, 0.6F);
-
-        level.sendParticles(ParticleTypes.FLASH, p.x, p.y + 1.0D, p.z, 1, 0, 0, 0, 0);
-        level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, p.x, p.y + 0.5D, p.z, 1, 0, 0, 0, 0);
-        for (int ring = 0; ring < 2; ring++) {
-            for (int i = 0; i < 40; i++) {
-                double a = Math.PI * 2.0D * i / 40.0D;
-                level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, p.x, p.y + 0.3D, p.z, 0,
-                        Math.cos(a), 0.04D, Math.sin(a), 0.5D + ring * 0.4D + radius * 0.05D);
-            }
-        }
-        for (int i = 0; i < 24; i++) {
-            level.sendParticles(ParticleTypes.END_ROD, p.x, p.y + i * 1.2D, p.z, 2, 0.15D, 0.1D, 0.15D, 0.02D);
-        }
+        level.playSound(null, p.x, p.y, p.z, SoundEvents.TRIDENT_THUNDER.value(), SoundSource.PLAYERS, 2.0F, 1.6F);
     }
 
     // ------------------------------------------------------------------ Mode 2: Reality Cut
@@ -144,7 +112,7 @@ public final class SoulSwordAbilities {
 
         AnnihilationBeamEntity beam = AnnihilationBeamEntity.create(level, cx + 0.5D, cy, cz + 0.5D,
                 AnnihilationBeamEntity.VARIANT_ANNIHILATION, SoulMath.beamVisualRadius(radius), player.getUUID());
-        beam.configureCrater(souls, radius, depth);
+        beam.configureCrater(souls, radius, depth, SoulMath.drillTicks(souls));
         level.addFreshEntity(beam);
 
         // The caster is never harmed by their own blast, and floats down if the ground is taken from under them.
@@ -155,9 +123,9 @@ public final class SoulSwordAbilities {
             player.addEffect(new MobEffectInstance(MobEffects.SLOW_FALLING, 1800, 0, false, false));
         }
 
-        level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.WARDEN_SONIC_BOOM, SoundSource.PLAYERS, 4.0F, 0.8F);
-        level.playSound(null, cx + 0.5D, cy, cz + 0.5D, SoundEvents.ENDER_DRAGON_GROWL, SoundSource.PLAYERS, 8.0F, 0.6F);
-        level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.GENERIC_EXPLODE.value(), SoundSource.PLAYERS, 3.0F, 0.4F);
+        // the sonic boom / dragon growl / explosion play when the beam tip actually lands (AnnihilationBeamEntity)
+        level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.WARDEN_SONIC_CHARGE, SoundSource.PLAYERS, 3.0F, 0.8F);
+        level.playSound(null, player.getX(), player.getY(), player.getZ(), SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 2.0F, 0.5F);
         player.displayClientMessage(Component.translatable("mode.soul_sword.2").withStyle(ChatFormatting.WHITE, ChatFormatting.BOLD), true);
     }
 }

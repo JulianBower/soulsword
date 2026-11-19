@@ -49,17 +49,18 @@ public class SoulSwordRenderer extends BlockEntityWithoutLevelRenderer {
         Player player = mc.player;
         boolean held = player != null && player.getMainHandItem() == stack;
         boolean empowered = held && SoulSwordItem.isEmpowered(player, stack);
+        float charge = held ? SoulSwordItem.chargeProgress(player, mc.getTimer().getGameTimeDeltaPartialTick(false)) : 0.0F;
 
         double time = (Util.getMillis() % 1_000_000L) / 1000.0D;
         float prism = (float) SoulMath.t(souls);
         float base = 0.20F + 0.60F * (float) Math.min(1.0D, Math.log10(souls + 1.0D) / 6.0D);
         float pulse = empowered ? 0.35F + 0.15F * (float) Math.sin(time * 12.0D) : 0.0F;
-        float intensity = Mth.clamp(base + pulse + 0.05F * (float) Math.sin(time * 4.0D), 0.0F, 1.0F);
+        float intensity = Mth.clamp(base + pulse + 0.35F * charge + 0.05F * (float) Math.sin(time * 4.0D), 0.0F, 1.0F);
 
         // low souls: cold abyssal violet-blue; many souls: full rainbow shimmer
         float hue = (float) ((time * 0.12D) % 1.0D);
         int prismatic = Mth.hsvToRgb(hue, 0.65F, 1.0F);
-        float mix = 0.2F + 0.8F * prism;
+        float mix = Mth.clamp(0.2F + 0.8F * prism + 0.6F * charge, 0.0F, 1.0F);
         float r = Mth.lerp(mix, 0.45F, ((prismatic >> 16) & 255) / 255.0F);
         float g = Mth.lerp(mix, 0.35F, ((prismatic >> 8) & 255) / 255.0F);
         float b = Mth.lerp(mix, 1.00F, (prismatic & 255) / 255.0F);
@@ -91,9 +92,9 @@ public class SoulSwordRenderer extends BlockEntityWithoutLevelRenderer {
                 rgb(r * intensity, g * intensity, b * intensity, 1.0F));
 
         // sparkling secondary layer once the blade holds a lot of souls
-        if (prism > 0.15F || empowered) {
+        if (prism > 0.15F || empowered || charge > 0.05F) {
             int second = Mth.hsvToRgb((hue + 0.5F) % 1.0F, 0.8F, 1.0F);
-            float a = Mth.clamp(0.25F + prism * 0.5F + (empowered ? 0.25F : 0.0F), 0.0F, 1.0F);
+            float a = Mth.clamp(0.25F + prism * 0.5F + charge * 0.4F + (empowered ? 0.25F : 0.0F), 0.0F, 1.0F);
             poseStack.pushPose();
             float grow = 1.05F + 0.02F * (float) Math.sin(time * 7.0D);
             poseStack.scale(grow, 1.0F, grow);

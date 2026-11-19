@@ -1,6 +1,7 @@
 package com.soulsword;
 
 import com.soulsword.network.SwitchSwordModePayload;
+import com.soulsword.network.SwordStrikePayload;
 import com.soulsword.registry.ModComponents;
 import com.soulsword.registry.ModEffects;
 import com.soulsword.registry.ModEntities;
@@ -33,6 +34,7 @@ public class SoulSwordMod {
     private void registerPayloads(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar("1");
         registrar.playToServer(SwitchSwordModePayload.TYPE, SwitchSwordModePayload.CODEC, SwitchSwordModePayload::handle);
+        registrar.playToServer(SwordStrikePayload.TYPE, SwordStrikePayload.CODEC, SwordStrikePayload::handle);
     }
 
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
