@@ -168,7 +168,7 @@ public class SoulSwordItem extends SwordItem {
     public void onUseTick(Level level, LivingEntity user, ItemStack stack, int remainingUseDuration) {
         int mode = getMode(stack);
         if (mode == MODE_ANNIHILATION) return;
-        int elapsed = getUseDuration(stack) - remainingUseDuration;
+        int elapsed = getUseDuration(stack, entity) - remainingUseDuration;
         float charge = Mth.clamp(elapsed / (float) FULL_CHARGE_TICKS, 0.0F, 1.0F);
 
         if (level.isClientSide) {
