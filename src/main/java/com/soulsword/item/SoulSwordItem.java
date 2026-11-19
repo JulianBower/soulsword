@@ -247,7 +247,7 @@ public class SoulSwordItem extends SwordItem {
     }
 
     @Override
-    public int getUseDuration(ItemStack stack) {
+    public int getUseDuration(ItemStack stack, LivingEntity entity) {
         return getMode(stack) == MODE_ANNIHILATION ? CAST_LOCK_TICKS : HOLD_TICKS;
     }
 

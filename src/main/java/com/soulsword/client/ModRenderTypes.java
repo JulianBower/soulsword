@@ -80,7 +80,7 @@ public final class ModRenderTypes extends RenderType {
     public static final Function<ResourceLocation, RenderType> RIFT_SKY_TEXTURED = Util.memoize(tex -> create("soul_sword_rift_sky_tex",
             DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS, 1536, false, false,
             CompositeState.builder()
-                    .setShaderState(POSITION_TEXTURE_COLOR_SHADER)
+                    .setShaderState(RENDERTYPE_ENTITY_TRANSLUCENT_EMISSIVE_SHADER)
                     .setTextureState(new RenderStateShard.TextureStateShard(tex, false, false))
                     .setTransparencyState(NO_TRANSPARENCY)
                     .setDepthTestState(NO_DEPTH_TEST)
@@ -93,7 +93,7 @@ public final class ModRenderTypes extends RenderType {
     public static final Function<ResourceLocation, RenderType> RIFT_SKY_BODY = Util.memoize(tex -> create("soul_sword_rift_body",
             DefaultVertexFormat.POSITION_TEX, VertexFormat.Mode.QUADS, 256, false, false,
             CompositeState.builder()
-                    .setShaderState(POSITION_TEXTURE_SHADER)
+                    .setShaderState(RENDERTYPE_ENTITY_TRANSLUCENT_EMISSIVE_SHADER)
                     .setTextureState(new RenderStateShard.TextureStateShard(tex, false, false))
                     .setTransparencyState(ADDITIVE_TRANSPARENCY)
                     .setDepthTestState(NO_DEPTH_TEST)
